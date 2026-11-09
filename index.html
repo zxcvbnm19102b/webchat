@@ -134,9 +134,9 @@
     <script>
         // ==================== CẤU HÌNH CỨNG (HARDCODE) ====================
         const CONFIG = {
-            API_KEY: "sk-3a543b86c7efd3d9-9df6e9-80f6768d",                  // Thay bằng API Key thực tế của bạn
-            API_URL: "http://178.168.82.16:8855/v1/chat/completions", // Endpoint (Có thể đổi thành URL của DeepSeek, OpenRouter, v.v.)
-            MODEL_NAME: "ds/deepseek-v4-pro"                    // Tên mô hình (vd: gpt-4o, deepseek-chat, v.v.)
+            API_KEY: "sk-3a543b86c7efd3d9-9df6e9-80f6768d",                  
+            API_URL: "http://178.168.82.16:8855/v1/chat/completions", 
+            MODEL_NAME: "ds/deepseek-v4-pro"                    
         };
         // =================================================================
 
@@ -146,7 +146,6 @@
         const messagesList = document.getElementById('messages-list');
         const welcomeScreen = document.getElementById('welcome-screen');
 
-        // Tự động thay đổi chiều cao của textarea khi nhập nội dung dài
         userInput.addEventListener('input', function() {
             this.style.height = 'auto';
             this.style.height = (this.scrollHeight) + 'px';
@@ -181,21 +180,17 @@
             const text = userInput.value.trim();
             if (!text) return;
 
-            // Ẩn màn hình chào mừng nếu có tin nhắn đầu tiên
             if (welcomeScreen.style.display !== 'none') {
                 welcomeScreen.style.display = 'none';
             }
 
-            // Reset input
             userInput.value = '';
             userInput.style.height = 'auto';
             sendBtn.disabled = true;
 
-            // Thêm tin nhắn người dùng vào giao diện
             appendMessage('user', text);
             chatHistory.push({ role: "user", content: text });
 
-            // Tạo khung chứa tin nhắn phản hồi của Assistant (trạng thái loading)
             const assistantMessageId = 'msg-' + Date.now();
             appendMessage('assistant', '<span class="inline-block animate-pulse">Đang suy nghĩ...</span>', assistantMessageId);
 
@@ -209,22 +204,29 @@
                     body: JSON.stringify({
                         model: CONFIG.MODEL_NAME,
                         messages: chatHistory,
-                        stream: true // Có thể đổi thành true nếu muốn làm hiệu ứng stream gõ chữ
+                        stream: false // Đặt thành false để nhận phản hồi JSON chuẩn, tránh lỗi stream
                     })
                 });
 
                 if (!response.ok) {
-                    const errData = await response.json();
-                    throw new Error(errData.error?.message || `Lỗi HTTP: ${response.status}`);
+                    let errorMsg = `Lỗi HTTP: ${response.status}`;
+                    try {
+                        const errData = await response.json();
+                        errorMsg = errData.error?.message || errorMsg;
+                    } catch (e) {}
+                    throw new Error(errorMsg);
                 }
 
                 const data = await response.json();
+                
+                // Kiểm tra cấu trúc trả về an toàn hơn
+                if (!data.choices || data.choices.length === 0 || !data.choices[0].message) {
+                    throw new Error("Phản hồi từ API không đúng định dạng chuẩn OpenAI.");
+                }
+
                 const replyText = data.choices[0].message.content;
 
-                // Cập nhật lại lịch sử hội thoại
                 chatHistory.push({ role: "assistant", content: replyText });
-
-                // Render phản hồi bằng Markdown
                 updateMessageContent(assistantMessageId, replyText);
 
             } catch (error) {
@@ -251,7 +253,6 @@
             if (id) messageDiv.id = id;
             messagesList.appendChild(messageDiv);
             
-            // Highlight code nếu có
             if (!isUser) {
                 document.querySelectorAll('pre code').forEach((block) => {
                     hljs.highlightElement(block);
@@ -267,7 +268,6 @@
                 const contentDiv = messageElement.querySelector('.message-content');
                 contentDiv.innerHTML = marked.parse(htmlContent);
                 
-                // Highlight lại mã code
                 contentDiv.querySelectorAll('pre code').forEach((block) => {
                     hljs.highlightElement(block);
                 });
