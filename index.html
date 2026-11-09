@@ -6,8 +6,8 @@
     <title>ChatGPT Style Interface</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Marked.js để render Markdown -->
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.js"></script>
+    <!-- Marked.js dùng CDN của cdnjs (tránh hoàn toàn lỗi MIME type của jsDelivr) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.3.0/marked.min.js"></script>
     <!-- Highlight.js để làm nổi bật mã code -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/atom-one-dark.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
@@ -146,6 +146,13 @@
         const messagesList = document.getElementById('messages-list');
         const welcomeScreen = document.getElementById('welcome-screen');
 
+        function renderContent(content) {
+            if (typeof marked !== 'undefined' && typeof marked.parse === 'function') {
+                return marked.parse(content);
+            }
+            return escapeHtml(content).replace(/\n/g, '<br>');
+        }
+
         userInput.addEventListener('input', function() {
             this.style.height = 'auto';
             this.style.height = (this.scrollHeight) + 'px';
@@ -204,7 +211,7 @@
                     body: JSON.stringify({
                         model: CONFIG.MODEL_NAME,
                         messages: chatHistory,
-                        stream: false // Đặt thành false để nhận phản hồi JSON chuẩn, tránh lỗi stream
+                        stream: false 
                     })
                 });
 
@@ -219,7 +226,6 @@
 
                 const data = await response.json();
                 
-                // Kiểm tra cấu trúc trả về an toàn hơn
                 if (!data.choices || data.choices.length === 0 || !data.choices[0].message) {
                     throw new Error("Phản hồi từ API không đúng định dạng chuẩn OpenAI.");
                 }
@@ -244,16 +250,19 @@
 
             const messageDiv = document.createElement('div');
             messageDiv.className = `py-6 px-4 border-b border-gray-700/30 ${bgClass} flex justify-center`;
+            
+            const renderedBody = isUser ? escapeHtml(content) : renderContent(content);
+
             messageDiv.innerHTML = `
                 <div class="max-w-3xl w-full flex gap-4">
                     <div class="flex-shrink-0">${icon}</div>
-                    <div class="flex-1 message-content overflow-hidden text-sm">${isUser ? escapeHtml(content) : marked.parse(content)}</div>
+                    <div class="flex-1 message-content overflow-hidden text-sm">${renderedBody}</div>
                 </div>
             `;
             if (id) messageDiv.id = id;
             messagesList.appendChild(messageDiv);
             
-            if (!isUser) {
+            if (!isUser && typeof hljs !== 'undefined') {
                 document.querySelectorAll('pre code').forEach((block) => {
                     hljs.highlightElement(block);
                 });
@@ -266,11 +275,13 @@
             const messageElement = document.getElementById(id);
             if (messageElement) {
                 const contentDiv = messageElement.querySelector('.message-content');
-                contentDiv.innerHTML = marked.parse(htmlContent);
+                contentDiv.innerHTML = renderContent(htmlContent);
                 
-                contentDiv.querySelectorAll('pre code').forEach((block) => {
-                    hljs.highlightElement(block);
-                });
+                if (typeof hljs !== 'undefined') {
+                    contentDiv.querySelectorAll('pre code').forEach((block) => {
+                        hljs.highlightElement(block);
+                    });
+                }
             }
             scrollToBottom();
         }
